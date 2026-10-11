@@ -6,6 +6,8 @@ import com.example.loja.e_commerce.service.ProdutoService;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/produtos")
 public class ProdutoController {
@@ -22,7 +24,7 @@ public class ProdutoController {
     }
 
     @PostMapping
-    public Produto criar(@RequestBody Produto produto){
+    public Produto criar(@Valid @RequestBody Produto produto){
         return produtoService.salvar(produto);
     }
 

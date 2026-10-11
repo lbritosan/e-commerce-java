@@ -19,7 +19,7 @@ O projeto foi construído utilizando o ecossistema Java moderno e adota os três
 
 ### 2. Persistência de Dados
 * **Spring Data JPA & Hibernate:** Abstração completa da camada de banco de dados, eliminando a necessidade de escrita manual de consultas SQL redundantes através do padrão *Repository*.
-* **H2 Database:** Banco de dados relacional executado em memória (*in-memory*), ideal para ciclos de desenvolvimento ágil e testes locais rápidos sem dependências externas.
+* **PostgreSQL:** Banco de dados relacional robusto e definitivo utilizado para garantir a persistência e integridade dos dados da loja em ambientes de desenvolvimento e produção.
 
 ### 3. Segurança (OAuth2 / JWT)
 * **Spring Security:** Configurado para atuar estritamente como um **Resource Server** (Servidor de Recursos).
@@ -51,23 +51,36 @@ O projeto foi validado e implantado com sucesso no ecossistema do Google Cloud u
 * Java 21 instalado.
 * Docker Desktop instalado e rodando.
 
-### Opção 1: Executando via IDE (Sem Docker)
-1. Clone o repositório:
+### Opção 1: Executando via IDE (Com Banco de Dados no Docker)
+1. Suba o container do banco de dados PostgreSQL via terminal:
    ```bash
-   git clone https://github.com
+   docker run --name loja-postgres -e POSTGRES_DB=lojadb -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=root -p 5432:5432 -d postgres:15
    ```
 2. Abra o projeto na sua IDE (IntelliJ ou VS Code).
-3. Execute a classe principal anotada com `@SpringBootApplication`.
-4. A API estará disponível em `http://localhost:8080`.
+3. Certifique-se de que as propriedades de conexão com o PostgreSQL estão ativas no `application.properties`.
+4. Execute a classe principal anotada com `@SpringBootApplication`.
+5. A API estará disponível em `http://localhost:8080`.
 
-### Opção 2: Executando via Docker
-1. Construa a imagem localmente:
+### Opção 2: Executando a Arquitetura Completa via Containers (Isolado da IDE)
+1. Crie uma rede isolada no Docker para comunicação entre os containers:
    ```bash
-   docker build -t e-commerce-api:v1 .
+   docker network create loja-network
    ```
-2. Inicie o container mapeando as portas:
+2. Inicialize o container do banco de dados conectado à rede:
    ```bash
-   docker run -d -p 8080:8080 --name loja-container e-commerce-api:v1
+   docker run --name loja-postgres --network loja-network -e POSTGRES_DB=lojadb -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=root -p 5432:5432 -d postgres:15
+   ```
+3. Gere o binário executável da aplicação limpando builds antigos:
+   ```bash
+   mvn clean package -DskipTests
+   ```
+4. Construa a imagem Docker da API:
+   ```bash
+   docker build -t e-commerce-api:v2 .
+   ```
+5. Inicie o container da aplicação injetando a URL de rede do banco de dados dinamicamente:
+   ```bash
+   docker run -d -p 8080:8080 --name loja-app-container --network loja-network -e SPRING_DATASOURCE_URL=jdbc:postgresql://loja-postgres:5432/lojadb e-commerce-api:v2
    ```
 
 ---
@@ -79,26 +92,25 @@ O projeto foi validado e implantado com sucesso no ecossistema do Google Cloud u
 * **URL:** `http://localhost:8080/api/produtos`
 * **Resposta esperada (Status 200 OK):** Um JSON contendo a lista de produtos cadastrados.
 
-### 2. Cadastrar Produto (Protegido)
+### 2. Cadastrar Produto (Protegido via Terminal/cURL)
 * **Método:** `POST`
 * **URL:** `http://localhost:8080/api/produtos`
-* **Cabeçalho Obrigatório:** `Authorization: Bearer <SEU_TOKEN_JWT>`
-* **Corpo da Requisição (JSON):**
-  ```json
-  {
-      "nome": "Teclado Mecânico RGB",
-      "descricao": "Switch Blue e iluminação customizável",
-      "preco": 349.90
-  }
+* **Comando de disparo seguro (HTTP/1.1):**
+  ```bash
+  curl -X POST http://localhost:8080/api/produtos \
+    -H "Authorization: Bearer <SEU_TOKEN_JWT>" \
+    -H "Content-Type: application/json" \
+    -d '{"nome": "Mouse Vertical Ergonomico", "descricao": "Mouse sem fio anatomico", "preco": 189.90}'
   ```
-* **Resposta esperada (Status 201 Created):** Retorno do JSON enviado, agora contendo o ID gerado pelo banco de dados.
+* **Resposta esperada (Status 201 Created):** Retorno do JSON enviado, contendo o ID gerado pelo PostgreSQL.
 
-### 3. Visualizar Banco de Dados H2
-* **URL:** `http://localhost:8080/h2-console`
-* **JDBC URL:** `jdbc:h2:mem:lojadb`
-* **User:** `sa` (Senha em branco)
+### 3. Visualizar e Consultar o Banco de Dados PostgreSQL (Git Bash)
+Para verificar de forma rápida os registros armazenados fisicamente no container do banco de dados sem a necessidade de um cliente visual externo, execute o comando direto abaixo:
+```bash
+docker exec -i loja-postgres psql -U admin -d lojadb -c "SELECT * FROM produtos;"
+```
 
 ---
 
 ## 🔑 Geração de Token para Testes Locais
-Para facilitar a validação da rota protegida durante o desenvolvimento, o projeto possui uma classe utilitária (`GeradorTokenUtil`) que implementa `CommandLineRunner`. Sempre que a aplicação inicializa, **um token JWT válido de testes é impresso automaticamente no console/log da IDE**, bastando copiá-lo e colá-lo na aba *Authorization -> Bearer Token* do seu Postman ou Insomnia.
+Para facilitar a validação da rota protegida durante o desenvolvimento, o projeto possui uma classe utilitária (`GeradorTokenUtil`) que implementa `CommandLineRunner`. Sempre que a aplicação inicializa, **um token JWT válido de testes é impresso automaticamente no console/log da IDE ou do container**, bastando copiá-lo e utilizá-lo no cabeçalho de autenticação do seu cliente HTTP.

@@ -6,28 +6,28 @@ Este documento especifica a arquitetura distribuída, orientada a eventos (*Even
 
 ## 🗺️ Visão Geral do Ecossistema Distribuído
 
-O sistema é composto por dois microsserviços Spring independentes, desacoplados através de mensageria assíncrona e otimizados para alta concorrência:
+## 🗺️ Visão Geral do Ecossistema Distribuído
 
 ```text
   [Cliente]
       │
-      ▼ (HTTP POST /api/pedidos - Síncrono)
+      ▼ (HTTP POST /api/pedidos [Status 202 Accepted] - Síncrono)
 ┌─────────────────────────────────┐
 │        Pedido-Service           │ (Spring Boot / Port: 8080)
 │  ┌───────────────────────────┐  │
-│  │ ThreadPoolTaskExecutor    │  │ --> Processamento concorrente interno (Multithreading)
+│  │    PedidoController       │  │ --> Endpoint de Entrada Isolado
+│  └─────────────┬─────────────┘  │
+│                │ (Injeção de Dependência)
+│                ▼
+│  ┌───────────────────────────┐  │
+│  │ ThreadPoolTaskExecutor    │  │ --> Execução Concorrente (ThreadPedido-X)
 │  └─────────────┬─────────────┘  │
 └────────────────┼────────────────┘
                  │
-                 ▼ (Mensagem AMQP - Assíncrono)
+                 ▼ (Mensagem AMQP - Assíncrono para Sprint 3)
        ┌───────────────────┐
-       │  RabbitMQ Broker  │ --> Desacoplamento e Resiliência de Dados
-       └─────────┬─────────┘
-                 │
-                 ▼ (Consumidor Ativo / @RabbitListener)
-┌─────────────────────────────────┐
-│      Notificacao-Service        │ (Spring Boot / Port: 8081)
-└─────────────────────────────────┘
+       │  RabbitMQ Broker  │ 
+       └───────────────────┘
 ```
 
 ---
